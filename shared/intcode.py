@@ -1,6 +1,6 @@
 def get_mode(modes, index):
     try:
-        return modes[-index]
+        return int(modes[-index])
     except:
         return 0  # default parameter mode
 
@@ -25,7 +25,7 @@ def read_param(memory, ip, index, output=False):
 
 
 def read_from_input(input):
-    if not input:
+    if input is None:
         raise Exception("Input not connected")
     try:
         return input.pop()
@@ -34,10 +34,10 @@ def read_from_input(input):
 
 
 def write_to_output(output, value):
-    if not output:
+    if output is None:
         raise Exception("Output not connected")
     try:
-        return output.append(value)
+        output.append(value)
     except:
         raise Exception("Cannot write to output")
 
@@ -72,6 +72,36 @@ def intcode(memory, input=None, output=None):
             p1 = read_param(memory, ip, 1)
             write_to_output(output, p1)
             ip += 2
+
+        elif opcode == 5:  # jump-if-true
+            p1 = read_param(memory, ip, 1)
+            p2 = read_param(memory, ip, 2)
+            if p1 != 0:
+                ip = p2
+            else:
+                ip += 3
+        
+        elif opcode == 6:  # jump-if-false
+            p1 = read_param(memory, ip, 1)
+            p2 = read_param(memory, ip, 2)
+            if p1 == 0:
+                ip = p2
+            else:
+                ip += 3
+
+        elif opcode == 7:  # less-than
+            p1 = read_param(memory, ip, 1)
+            p2 = read_param(memory, ip, 2)
+            p3 = read_param(memory, ip, 3, output=True)
+            memory[p3] = 1 if p1 < p2 else 0
+            ip += 4
+
+        elif opcode == 8:  # equals
+            p1 = read_param(memory, ip, 1)
+            p2 = read_param(memory, ip, 2)
+            p3 = read_param(memory, ip, 3, output=True)
+            memory[p3] = 1 if p1 == p2 else 0
+            ip += 4
 
         elif opcode == 99:
             ip += 1
