@@ -1,7 +1,8 @@
 import math
-import sys
+import sys, os
 
-from intcode import intcode
+sys.path.append(os.path.dirname(os.path.dirname(os.path.realpath(__file__))))
+from shared.intcode import intcode
 
 if __name__ == '__main__':
 
