@@ -28,7 +28,11 @@ def read_from_input(input):
     if input is None:
         raise Exception("Input not connected")
     try:
-        return input.pop()
+        # I don't like this, need to re-design later.
+        input.reverse()
+        i = input.pop()
+        input.reverse()
+        return i
     except:
         raise Exception("Cannot read from input")
 
@@ -42,7 +46,7 @@ def write_to_output(output, value):
         raise Exception("Cannot write to output")
 
 
-def intcode(memory, input=None, output=None):
+def intcode(memory, input=None, output=None, debug=False):
     ip = 0  # instruction pointer
     while True:
         instruction = str(memory[ip])
@@ -53,6 +57,8 @@ def intcode(memory, input=None, output=None):
             p3 = read_param(memory, ip, 3, output=True)
             sum = p1 + p2
             memory[p3] = sum
+            if debug:
+                print("ADD   {p1} + {p2} = {sum} -> &{p3}".format(**locals()))
             ip += 4
             
         elif opcode == 2:  # mult
@@ -61,16 +67,23 @@ def intcode(memory, input=None, output=None):
             p3 = read_param(memory, ip, 3, output=True)
             prod = p1 * p2
             memory[p3] = prod
+            if debug:
+                print("MULT  {p1} x {p2} = {prod} -> &{p3}".format(**locals()))
             ip += 4
 
         elif opcode == 3:  # input
             p1 = read_param(memory, ip, 1, output=True)
-            memory[p1] = read_from_input(input)  # saving input
+            inp = read_from_input(input)  # saving input
+            memory[p1] = inp
+            if debug:
+                print("INPUT {inp} -> &{p1}".format(**locals()))
             ip += 2
 
         elif opcode == 4:  # output
             p1 = read_param(memory, ip, 1)
             write_to_output(output, p1)
+            if debug:
+                print("OUTPT {output} -> &{p1}".format(**locals()))
             ip += 2
 
         elif opcode == 5:  # jump-if-true
