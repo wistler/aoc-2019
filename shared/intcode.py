@@ -1,6 +1,8 @@
 import queue
 import threading
 
+relative_base = 0
+
 def get_mode(modes, index):
     try:
         return int(modes[-index])
@@ -9,22 +11,41 @@ def get_mode(modes, index):
 
 
 def read(memory, parameter, mode):
-    if mode == 0:  # position mode
-        return memory[parameter]
-    if mode == 1:  # immediate mode
-        return parameter
-        
+    try:
+        if mode == 0:  # position mode
+            return memory[parameter]
+        if mode == 1:  # immediate mode
+            return parameter
+        if mode == 2:  # relative mode
+            return memory[relative_base + parameter]
+    except:
+        print("ERROR Reading Memory: {}".format(locals()))
+        raise
     raise Exception("Unknown parameter mode: " + mode)
 
 
-def read_param(memory, ip, index, output=False):
+def read_param(memory, ip, index):
     instruction = str(memory[ip])
     pmodes = instruction[:-2]
     param = memory[ip + index]
-    if output:
-        return param
     mode = get_mode(pmodes, index)
     return read(memory, param, mode)
+
+
+def write_to_param(memory, ip, index, output):
+    instruction = str(memory[ip])
+    pmodes = instruction[:-2]
+    param = memory[ip + index]
+    mode = get_mode(pmodes, index)
+    if mode == 1:
+        raise Exception("PROGRAM ERROR: IMMEDIATE MODE NOT SUPPORTED FOR OUTPUT PARAMETER!")
+    if mode == 0:  # position mode
+        memory[param] = output
+        return
+    if mode == 2:  # relative mode
+        memory[relative_base + param] = output
+        return
+    raise Exception("Unknown parameter mode: {}".format(mode))
 
 
 def read_from_input(input):
@@ -58,86 +79,115 @@ def write_to_output(output, value):
         except:
             raise Exception("Cannot write to output")
 
+class SparseList(list):
+  def __setitem__(self, index, value):
+    missing = index - len(self) + 1
+    if missing > 0:
+      self.extend([0] * missing)
+    list.__setitem__(self, index, value)
+
+  def __getitem__(self, index):
+    try: return list.__getitem__(self, index)
+    except IndexError: return 0
 
 def intcode(memory, input=None, output=None, id='_', debug=False):
+    global relative_base
     ip = 0  # instruction pointer
-    while True:
-        instruction = str(memory[ip])
-        opcode = int(instruction[-2:])
-        if opcode == 1:  # add
-            p1 = read_param(memory, ip, 1)
-            p2 = read_param(memory, ip, 2)
-            p3 = read_param(memory, ip, 3, output=True)
-            sum = p1 + p2
-            memory[p3] = sum
-            # if debug:
-            #     print("{id}: ADD   {p1} + {p2} = {sum} -> &{p3}".format(**locals()))
-            ip += 4
+    relative_base = 0  # reset relative base on start
+    memory = SparseList(memory)
+    try:
+        while True:
+            instruction = str(memory[ip])
+            opcode = int(instruction[-2:])
+            if opcode == 1:  # add
+                p1 = read_param(memory, ip, 1)
+                p2 = read_param(memory, ip, 2)
+                sum = p1 + p2
+                if debug:
+                    print("{id}:#{ip} ADD   {p1} + {p2} = {sum}".format(**locals()))
+                write_to_param(memory, ip, 3, sum)
+                ip += 4
+                
+            elif opcode == 2:  # mult
+                p1 = read_param(memory, ip, 1)
+                p2 = read_param(memory, ip, 2)
+                prod = p1 * p2
+                if debug:
+                    print("{id}:#{ip} MULT  {p1} x {p2} = {prod}".format(**locals()))
+                write_to_param(memory, ip, 3, prod)
+                ip += 4
+
+            elif opcode == 3:  # input
+                inp = read_from_input(input)  # saving input
+                if debug:
+                    print("{id}:#{ip} INPUT {inp}".format(**locals()))
+                write_to_param(memory, ip, 1, inp)
+                ip += 2
+
+            elif opcode == 4:  # output
+                p1 = read_param(memory, ip, 1)
+                if debug:
+                    print("{id}:#{ip} OUTPT {p1}".format(**locals()))
+                write_to_output(output, p1)
+                ip += 2
+
+            elif opcode == 5:  # jump-if-true
+                p1 = read_param(memory, ip, 1)
+                p2 = read_param(memory, ip, 2)
+                if debug:
+                    print("{id}:#{ip} JMP IF TRUE {p1} ==> &{p2}".format(**locals()))
+                if p1 != 0:
+                    ip = p2
+                else:
+                    ip += 3
             
-        elif opcode == 2:  # mult
-            p1 = read_param(memory, ip, 1)
-            p2 = read_param(memory, ip, 2)
-            p3 = read_param(memory, ip, 3, output=True)
-            prod = p1 * p2
-            memory[p3] = prod
-            # if debug:
-            #     print("{id}: MULT  {p1} x {p2} = {prod} -> &{p3}".format(**locals()))
-            ip += 4
+            elif opcode == 6:  # jump-if-false
+                p1 = read_param(memory, ip, 1)
+                p2 = read_param(memory, ip, 2)
+                if debug:
+                    print("{id}:#{ip} JMP IF FALSE {p1} ==> &{p2}".format(**locals()))
+                if p1 == 0:
+                    ip = p2
+                else:
+                    ip += 3
 
-        elif opcode == 3:  # input
-            p1 = read_param(memory, ip, 1, output=True)
-            inp = read_from_input(input)  # saving input
-            memory[p1] = inp
-            if debug:
-                print("{id}: INPUT {inp} -> &{p1}".format(**locals()))
-            ip += 2
+            elif opcode == 7:  # less-than
+                p1 = read_param(memory, ip, 1)
+                p2 = read_param(memory, ip, 2)
+                if debug:
+                    print("{id}:#{ip} LESS THAN {p1} < {p2}".format(**locals()))
+                result = 1 if p1 < p2 else 0
+                write_to_param(memory, ip, 3, result)
+                ip += 4
 
-        elif opcode == 4:  # output
-            p1 = read_param(memory, ip, 1)
-            write_to_output(output, p1)
-            if debug:
-                print("{id}: OUTPT -> {p1}".format(**locals()))
-            ip += 2
+            elif opcode == 8:  # equals
+                p1 = read_param(memory, ip, 1)
+                p2 = read_param(memory, ip, 2)
+                if debug:
+                    print("{id}:#{ip} EQUALS {p1} == {p2}".format(**locals()))
+                result = 1 if p1 == p2 else 0
+                write_to_param(memory, ip, 3, result)
+                ip += 4
 
-        elif opcode == 5:  # jump-if-true
-            p1 = read_param(memory, ip, 1)
-            p2 = read_param(memory, ip, 2)
-            if p1 != 0:
-                ip = p2
+            elif opcode == 9:  # adjust relative base
+                p1 = read_param(memory, ip, 1)
+                relative_base += p1
+                if debug:
+                    print("{id}:#{ip} ADJ REL_BASE -> {relative_base}".format(relative_base=relative_base, **locals()))
+                ip += 2
+
+            elif opcode == 99:
+                ip += 1
+                break
             else:
-                ip += 3
-        
-        elif opcode == 6:  # jump-if-false
-            p1 = read_param(memory, ip, 1)
-            p2 = read_param(memory, ip, 2)
-            if p1 == 0:
-                ip = p2
-            else:
-                ip += 3
-
-        elif opcode == 7:  # less-than
-            p1 = read_param(memory, ip, 1)
-            p2 = read_param(memory, ip, 2)
-            p3 = read_param(memory, ip, 3, output=True)
-            memory[p3] = 1 if p1 < p2 else 0
-            ip += 4
-
-        elif opcode == 8:  # equals
-            p1 = read_param(memory, ip, 1)
-            p2 = read_param(memory, ip, 2)
-            p3 = read_param(memory, ip, 3, output=True)
-            memory[p3] = 1 if p1 == p2 else 0
-            ip += 4
-
-        elif opcode == 99:
-            ip += 1
-            break
-        else:
-            raise Exception("Unknown opcode: " + opcode)
-    return {
-        "memory": memory,
-        "ip": ip,
-    }
+                raise Exception("Unknown opcode: " + opcode)
+        return {
+            "memory": memory,
+            "ip": ip,
+        }
+    except:
+        print("ERROR: Program crashed! {}".format(locals()))
+        raise
 
 
 class Processor(threading.Thread):
