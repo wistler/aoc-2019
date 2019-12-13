@@ -17,10 +17,6 @@ def run_amp_chain(program, phase_seq, input_signal=0, debug=False):
         input_signal = output  # for next amp in chain
     return output
 
-def amp(code, phase, input_wire, output_wire):
-    input_wire.put(phase)
-    intcode(code.copy(), input=input_wire, output=output_wire)
-
 def create_amp(id, code, phase, in_wire=None, out_wire=None, debug=False):
     if not in_wire:
         in_wire = queue.Queue()
