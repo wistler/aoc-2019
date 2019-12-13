@@ -1,3 +1,4 @@
+import math
 
 class Coord(object):
     def __init__(self, x, y):
@@ -5,7 +6,7 @@ class Coord(object):
         self.y = y
     
     def __repr__(self):
-        return "[{},{}]".format(self.x, self.y)
+        return "<{},{}>".format(self.x, self.y)
 
     def __add__(self, other):
         return Coord(self.x + other.x, self.y + other.y)
@@ -22,6 +23,16 @@ class Coord(object):
     
     def __hash__(self):
         return hash(self.x) * 3 + hash(self.y)
+
+    def theta(self, origin):
+        """
+        Returns angle made by self, at the origin, with Due North (in radians).
+        Output Range is [0, 2*pi]
+        """
+        t = math.atan2(self.y - origin.y, self.x - origin.x) + math.pi / 2
+        T = (t if t >= 0 else (2 * math.pi + t))
+        # print('ẟy = {}, ẟx = {}, ϴ = {}, ϴ\' = {}'.format(self.y - origin.y, self.x - origin.x, t, T))
+        return T
 
     def onLine(self, o1, o2, debug=False):
         x1 = min(o1.x, o2.x)
