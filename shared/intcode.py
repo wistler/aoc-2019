@@ -255,10 +255,17 @@ class Connector(threading.Thread):
             if self.stop:
                 break
 
-            i = self.in_wire.get()
-            if self.debug:
-                print('{self}: ---[ {i} ]-->'.format(**locals()))
-            self.out_wire.put(i)
+            self.process()
 
         if self.debug:
             print('{self}: Stopped'.format(**locals()))
+
+    def process(self):
+        """
+        Base implementation is to simply transfer the data.
+        Override this for custom behavior.
+        """
+        i = self.in_wire.get()
+        if self.debug:
+            print('{self}: ---[ {i} ]-->'.format(**locals()))
+        self.out_wire.put(i)
