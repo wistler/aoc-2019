@@ -255,7 +255,11 @@ class Connector(threading.Thread):
             if self.stop:
                 break
 
-            self.process()
+            try:
+                self.process()
+            except BaseException as e:
+                print("EXCEPTION: {}".format(e))
+                raise
 
         if self.debug:
             print('{self}: Stopped'.format(**locals()))
@@ -265,7 +269,8 @@ class Connector(threading.Thread):
         Base implementation is to simply transfer the data.
         Override this for custom behavior.
         """
-        i = self.in_wire.get()
-        if self.debug:
-            print('{self}: ---[ {i} ]-->'.format(**locals()))
-        self.out_wire.put(i)
+        if self.out_wire and self.in_wire:
+            i = self.in_wire.get()
+            if self.debug:
+                print('{self}: ---[ {i} ]-->'.format(**locals()))
+            self.out_wire.put(i)
