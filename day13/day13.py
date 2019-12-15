@@ -211,3 +211,4 @@ if __name__ == '__main__':
     (_, wires,_, _) = arcade
     (controller, ) = wires
     print('Current Score: {}'.format( controller.score ))
+    print('Number of "block" tiles: {}'.format( grid.numBlocks() ))
