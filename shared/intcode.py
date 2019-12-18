@@ -2,6 +2,7 @@ import queue
 import threading
 
 relative_base = 0
+stop = False
 
 def get_mode(modes, index):
     try:
@@ -96,7 +97,7 @@ def intcode(memory, input=None, output=None, id='_', debug=False):
     relative_base = 0  # reset relative base on start
     memory = SparseList(memory)
     try:
-        while True:
+        while not stop:
             instruction = str(memory[ip])
             opcode = int(instruction[-2:])
             if opcode == 1:  # add
@@ -207,6 +208,13 @@ class Processor(threading.Thread):
 
     def __str__(self):
         return 'Proc [{id}]'.format(id=self.id)
+
+    @staticmethod
+    def abort():
+        print('Intcode: ABORT'.format(**locals()))
+
+        global stop
+        stop = True
 
     def run(self):
         if self.debug:
