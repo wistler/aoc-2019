@@ -1,77 +1,161 @@
-import sys, os
-import itertools
+import sys, os, time, datetime
 
-def repeat(pattern, times):
-    # g = []
-    # for h in [([x] * times) for x in pattern]:
-    #     g.extend(h)
-    # return g
-
-    for x in pattern:
-        for _ in range(times):
-            yield x
+sys.path.append(os.path.dirname(os.path.dirname(os.path.realpath(__file__))))
+from shared.progress import Progress
+from shared.repeater import SignalRepeater, SignalDataRepeater
 
 
-def gen_phase(signal, base_pattern, start=0, stop=None):
+def gen_phases(signal, pattern, num_phases, 
+               start=0, stop=None, optimize=False,
+               debug=False, progress=None):
+    len_signal = len(signal)
+    len_half_signal = len_signal // 2
     if stop is None:
-        stop = len(signal)
+        stop = len_signal
 
-    phase = []
-    for i in range(start, stop):
-        pattern = itertools.cycle(repeat(base_pattern, i+1))
-        next(pattern)  # drop the first
+    if progress:
+        progress.total = num_phases 
 
-        acc = sum(s*p for s, p in zip(signal, pattern))
-        phase.append(abs(acc) % 10)
+    prev_phase = signal
+    for p in range(num_phases):
+        phase = [0]*len_signal
+
+        for i in range(len_signal-1,
+                       -1 if not optimize else start-1,   # only computing what is needed
+                       -1):
+            acc = 0
+            if i == len_signal-1:
+                acc = prev_phase[i]              # s'[end] = s[end]
+            elif i >= len_half_signal:
+                acc = prev_phase[i] + phase[i+1] # s'[end-2]=(s[end-2]+s'[end-1])%10
+            else:
+                pat = SignalDataRepeater(pattern, i+1)
+                for j in range(i,len_signal): # Skipping i entries in signal because pattern[0] is 0
+                    b = pat[j+1]              # The +1 is for skipping first index in pattern
+                    if b != 0 :
+                        a = prev_phase[j]
+                        acc += a*b
+
+            phase[i] = abs(acc) % 10
+
+        if progress:
+            progress.add(1)
+
+        prev_phase = phase
+        if debug:
+            if progress:
+                progress.clear()
+            print("After {:3} phases: {}".format(p+1, out_T(phase)))
+
     return phase
 
 
-def gen_phases(signal, base_pattern, phases):
-    for _ in range(phases):
-        signal = gen_phase(signal, base_pattern)
-    return signal
+def in_T(signal):
+    return list(ord(ch)-48 for ch in signal)
+
+
+def out_T(signal):
+    return ''.join(str(ch) for ch in signal)
 
 
 def run_tests():
-    signal = list(map(lambda ch: int(ch), '12345678'))
     base_pattern = [0, 1, 0, -1]
 
-    print(list(repeat(base_pattern, 3)))
-    ptn = itertools.cycle(repeat(base_pattern, 3))
-    next(ptn)
-    print(list(itertools.islice(ptn,0,20)))
-    phase1 = gen_phase(signal, base_pattern)
-    phase2 = gen_phase(phase1, base_pattern)
-    print(phase1, phase2)
+    test_signal = in_T('1'*32)
+    print("Signal  : {}".format(out_T(test_signal)))
+    for i in range(1,10):
+        phase_i = out_T(gen_phases(test_signal, base_pattern, i, start=1, stop=1+8))
+        print("Phase {:2}: {}".format(i, phase_i))
 
-    signal = list(map(lambda ch: int(ch), '80871224585914546619083218645595'))
-    print(gen_phases(signal, base_pattern, 100)[0:8])
+    ##########################################
 
-    signal = list(map(lambda ch: int(ch), '19617804207202209144916044189917'))
-    print(gen_phases(signal, base_pattern, 100)[0:8])
+    signal = in_T('12345678')
 
-    signal = list(map(lambda ch: int(ch), '69317163492948606335995924319873'))
-    print(gen_phases(signal, base_pattern, 100)[0:8])
+    phase1 = out_T(gen_phases(signal, base_pattern, 1))
+    wanted = '48226158'
+    if phase1 != wanted:
+        print("Assertion Error:\n\tInput:\t{i}\n\tOutput:\t{o}\n\tWanted:\t{e}"
+                .format(i=signal, o=phase1, e=wanted))
+        sys.exit(1)
 
-    signal = list(map(lambda ch: int(ch), '03036732577212944063491565474664'))
-    offset = int(''.join(map(lambda i: str(i), signal[0:7])))
-    print(gen_phases(signal*10000, base_pattern, 1)[offset:offset+8])
+    phase4 = out_T(gen_phases(signal, base_pattern, 4))
+    wanted = '01029498'
+    if phase4 != wanted:
+        print("Assertion Error:\n\tInput:\t{i}\n\tOutput:\t{o}\n\tWanted:\t{e}"
+                .format(i=signal, o=phase4, e=wanted))
+        sys.exit(1)
+    
+    ##########################################
 
+    print('Day 16: Testing for Part 1..')
+    testData = [
+        ('80871224585914546619083218645595', '24176176'),
+        ('19617804207202209144916044189917', '73745418'),
+        ('69317163492948606335995924319873', '52432133'),
+    ]
+    for i,e in testData:
+        o1 = out_T(gen_phases(in_T(i), base_pattern, 100,
+                              start=0, stop=8, optimize=False
+                              ))[0:8]
+        o2 = out_T(gen_phases(in_T(i), base_pattern, 100,
+                              start=0, stop=8, optimize=True
+                              ))[0:8]
+        if o1 != e:
+            print("Assertion Error:\n\tInput:\t{i}\n\tOutput:\t{o}\n\tWanted:\t{e}"
+                    .format(i=i, o=o1, e=e))
+            sys.exit(1)
+
+        if o1 != o2:
+            print("Optimization Error:\n\tInput:\t{i}\n\tOutput:\t{o}\n\tWanted:\t{e}"
+                    .format(i=i, o=o2, e=o1))
+            sys.exit(1)
+
+    ##########################################
+
+    print('Day 16: Testing for Part 2..')
+    testData = [
+        ('03036732577212944063491565474664', '84462026'),
+        ('02935109699940807407585447034323', '78725270'),
+        ('03081770884921959731165446850517', '53553731'),
+    ]
+    for i,e in testData:
+        sig = SignalRepeater(in_T(i), 10000)
+        start = int(i[0:7])
+        stop = start + 8
+        phases = 100
+        prog = None #Progress(phases)
+        print("Signal size: {}, Offset: {}".format(len(sig), start))
+        o = out_T(gen_phases(sig, base_pattern, phases,
+                             start=start, stop=stop, optimize=True,
+                             debug=False, progress=prog))[start:stop]
+        if o != e:
+            print("Assertion Error:\n\tOutput:\t{o}\n\tWanted:\t{e}"
+                    .format(i=i, o=o, e=e))
+            sys.exit(1)
 
 
 if __name__ == '__main__':
     run_tests()
-    sys.exit(1)
     print('Day 16')
 
     with open('./day16/input') as input:
         data = input.read()
 
-    signal = list(map(lambda ch: int(ch), data))
+    signal = in_T(data)
     base_pattern = [0, 1, 0, -1]
     print('Part 1..')
-    print(gen_phases(signal, base_pattern, 100)[0:8])
+    r_signal = signal
+    phases = 100
+    prog = None #Progress(phases * pow(len(r_signal),1))
+    print(out_T(gen_phases(r_signal, base_pattern, phases, progress=prog))[0:8])
 
     print('Part 2..')
-    offset = int(''.join(map(lambda i: str(i), signal[0:7])))
-    print(gen_phases(signal*10000, base_pattern, 100)[offset:offset+8])
+    r_signal = SignalRepeater(signal, 10000)
+    start = int(out_T(signal[0:7]))
+    stop = start + 8
+    phases = 100
+    prog = None # Progress(phases * pow(len(r_signal),1))
+    o = out_T(gen_phases(r_signal, base_pattern, phases,
+                            start=start, stop=stop, optimize=True,
+                            debug=False, progress=prog))[start:stop]
+    print(o)
