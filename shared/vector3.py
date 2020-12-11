@@ -54,6 +54,10 @@ class Vector3(object):
     
     def __hash__(self):
         return hash(self.x) * 5 + hash(self.y) * 3 + hash(self.z)
+    
+    def clone(self):
+        return Vector3(self.x, self.y, self.z)
+
 
 ZERO = Vector3(0,0,0)
 ONE = Vector3(1,1,1)
