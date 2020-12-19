@@ -144,7 +144,7 @@ def create_game(code, debug=False):
     game = Processor('game', code,
         in_wire=joystick,
         out_wire=output_display,
-        debug=debug
+        debug=True 
     )
     return (game, joystick, output_display)
 
